@@ -7,3 +7,12 @@ add_subdirectory(h5cpp-1.10.4-6-EAT)
 if(EINSUMS_USE_HPTT)
 	add_subdirectory(hptt)
 endif()
+
+set(BUILD_FUNCTIONAL_TESTS OFF CACHE INTERNAL "")
+include(FetchContent)
+FetchContent_Declare(
+	oneMKL
+	GIT_REPOSITORY https://github.com/oneapi-src/oneMKL.git
+	GIT_TAG 7c24bc66da834a39932cfead5ac66f54c729a0a2 # Master as of 3/25/2022
+)
+FetchContent_MakeAvailable(oneMKL)

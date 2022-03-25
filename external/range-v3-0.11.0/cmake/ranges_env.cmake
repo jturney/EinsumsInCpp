@@ -5,7 +5,8 @@
 # Detects the C++ compiler, system, build-type, etc.
 include(CheckCXXCompilerFlag)
 
-if("x${CMAKE_CXX_COMPILER_ID}" MATCHES "x.*Clang")
+if("x${CMAKE_CXX_COMPILER_ID}" MATCHES "x.*Clang" OR
+   "x${CMAKE_CXX_COMPILER_ID}" MATCHES "xIntelLLVM")
   if("x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC")
     set (RANGES_CXX_COMPILER_CLANGCL TRUE)
     if (RANGES_VERBOSE_BUILD)
