@@ -4,6 +4,7 @@ add_executable(test-all
     LinearAlgebra.cpp
     Tensor.cpp
     TensorAlgebra.cpp
+    Utilities.cpp
 )
 
 # Enable einsum auto test capabilities
