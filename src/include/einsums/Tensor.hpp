@@ -364,11 +364,78 @@ struct Tensor final : public detail::TensorBase<T, Rank> {
         return *this;
     }
 
+    auto operator+=(const Tensor<T, Rank> &b) -> Tensor<T, Rank> & {
+        if (size() != b.size()) {
+            throw std::runtime_error(fmt::format("operator-= : tensors differ in size : {} {}", size(), b.size()));
+        }
+#pragma omp parallel
+        {
+            auto tid = omp_get_thread_num();
+            auto chunksize = _data.size() / omp_get_num_threads();
+            auto abegin = _data.begin() + chunksize * tid;
+            auto bbegin = b._data.begin() + chunksize * tid;
+            auto aend = (tid == omp_get_num_threads() - 1) ? _data.end() : abegin + chunksize;
+
+            auto j = bbegin;
+#pragma omp simd
+            for (auto i = abegin; i < aend; i++) {
+                (*i) += (*j++);
+            }
+        }
+        return *this;
+    }
+
+    auto operator-=(const Tensor<T, Rank> &b) -> Tensor<T, Rank> & {
+        if (size() != b.size()) {
+            throw std::runtime_error(fmt::format("operator-= : tensors differ in size : {} {}", size(), b.size()));
+        }
+#pragma omp parallel
+        {
+            auto tid = omp_get_thread_num();
+            auto chunksize = _data.size() / omp_get_num_threads();
+            auto abegin = _data.begin() + chunksize * tid;
+            auto bbegin = b._data.begin() + chunksize * tid;
+            auto aend = (tid == omp_get_num_threads() - 1) ? _data.end() : abegin + chunksize;
+
+            auto j = bbegin;
+#pragma omp simd
+            for (auto i = abegin; i < aend; i++) {
+                (*i) -= (*j++);
+            }
+        }
+        return *this;
+    }
+
+    auto operator*=(const Tensor<T, Rank> &b) -> Tensor<T, Rank> & {
+        if (size() != b.size()) {
+            throw std::runtime_error(fmt::format("operator-= : tensors differ in size : {} {}", size(), b.size()));
+        }
+#pragma omp parallel
+        {
+            auto tid = omp_get_thread_num();
+            auto chunksize = _data.size() / omp_get_num_threads();
+            auto abegin = _data.begin() + chunksize * tid;
+            auto bbegin = b._data.begin() + chunksize * tid;
+            auto aend = (tid == omp_get_num_threads() - 1) ? _data.end() : abegin + chunksize;
+            auto j = bbegin;
+#pragma omp simd
+            for (auto i = abegin; i < aend; i++) {
+                (*i) *= (*j++);
+            }
+        }
+        return *this;
+    }
+
     template <typename... MultiIndex>
     auto operator()(MultiIndex... index) const
         -> std::enable_if_t<count_of_type<All_t, MultiIndex...>() == 0 && count_of_type<Range, MultiIndex...>() == 0, const T &> {
         assert(sizeof...(MultiIndex) == _dims.size());
-        auto index_list = {static_cast<size_t>(index)...};
+        auto index_list = std::array{static_cast<std::int64_t>(index)...};
+        for (auto [i, index] : enumerate(index_list)) {
+            if (index < 0) {
+                index_list[i] = _dims[i] + index;
+            }
+        }
         size_t ordinal = std::inner_product(index_list.begin(), index_list.end(), _strides.begin(), 0);
         return _data[ordinal];
     }
@@ -377,7 +444,12 @@ struct Tensor final : public detail::TensorBase<T, Rank> {
     auto operator()(MultiIndex... index)
         -> std::enable_if_t<count_of_type<All_t, MultiIndex...>() == 0 && count_of_type<Range, MultiIndex...>() == 0, T &> {
         assert(sizeof...(MultiIndex) == _dims.size());
-        auto index_list = {static_cast<size_t>(index)...};
+        auto index_list = std::array{static_cast<std::int64_t>(index)...};
+        for (auto [i, index] : enumerate(index_list)) {
+            if (index < 0) {
+                index_list[i] = _dims[i] + index;
+            }
+        }
         size_t ordinal = std::inner_product(index_list.begin(), index_list.end(), _strides.begin(), 0);
         return _data[ordinal];
     }
@@ -508,6 +580,11 @@ struct Tensor final : public detail::TensorBase<T, Rank> {
             target_value = value;
         }
 
+        return *this;
+    }
+
+    auto operator=(const T &fill_value) -> Tensor & {
+        set_all(fill_value);
         return *this;
     }
 
@@ -690,7 +767,7 @@ struct TensorView final : public detail::TensorBase<T, Rank> {
     template <template <typename, size_t> typename AType>
     auto operator=(const AType<T, Rank> &other) ->
         typename std::enable_if_t<is_incore_rank_tensor_v<AType<T, Rank>, Rank, T>, TensorView &> {
-        println("operator= {} {}", _name, other.name());
+        // println("operator= {} {}", _name, other.name());
         if constexpr (std::is_same_v<AType<T, Rank>, TensorView<T, Rank>>) {
             if (this == &other)
                 return *this;
@@ -711,7 +788,7 @@ struct TensorView final : public detail::TensorBase<T, Rank> {
     template <template <typename, size_t> typename AType>
     auto operator=(const AType<T, Rank> &&other) ->
         typename std::enable_if_t<is_incore_rank_tensor_v<AType<T, Rank>, Rank, T>, TensorView &> {
-        println("operator=&& {} {}", _name, other.name());
+        // println("operator=&& {} {}", _name, other.name());
         if constexpr (std::is_same_v<AType<T, Rank>, TensorView<T, Rank>>) {
             if (this == &other)
                 return *this;
@@ -874,16 +951,18 @@ struct TensorView final : public detail::TensorBase<T, Rank> {
             throw std::runtime_error("More than one -1 was provided.");
         }
 
-        if (nfound == 1) {
-            size_t size{1};
-            for (auto [i, dim] : enumerate(_dims)) {
-                if (i != location)
-                    size *= dim;
-            }
-            if (size > other.size()) {
-                throw std::runtime_error("Size of the new tensor is larger than the parent tensor.");
-            }
-            _dims[location] = other.size() / size;
+        if (nfound == 1 && Rank == 1) {
+            default_offsets.fill(0);
+            default_strides.fill(1);
+
+            auto offsets = Arguments::get(default_offsets, args...);
+            auto strides = Arguments::get(default_strides, args...);
+
+            _dims[location] = static_cast<std::int64_t>(std::ceil((other.size() - offsets[0]) / static_cast<float>(strides[0])));
+        }
+
+        if (nfound == 1 && Rank > 1) {
+            throw std::runtime_error("Haven't coded up this case yet.");
         }
 
         // If the Ranks are the same then use "other"s stride information
@@ -1531,6 +1610,18 @@ DiskTensor(h5::fd_t &file, std::string name, Dims... dims) -> DiskTensor<double,
 template <typename Type, typename... Args>
 auto create_tensor(const std::string name, Args... args) -> Tensor<Type, sizeof...(Args)> {
     return Tensor<Type, sizeof...(Args)>{name, args...};
+}
+
+template <template <typename, size_t> typename TensorType, typename DataType, size_t Rank>
+auto create_tensor_like(const TensorType<DataType, Rank> &tensor) -> Tensor<DataType, Rank> {
+    return Tensor<DataType, Rank>{tensor.dims()};
+}
+
+template <template <typename, size_t> typename TensorType, typename DataType, size_t Rank>
+auto create_tensor_like(const std::string name, const TensorType<DataType, Rank> &tensor) -> Tensor<DataType, Rank> {
+    auto result = Tensor<DataType, Rank>{tensor.dims()};
+    result.set_name(name);
+    return result;
 }
 
 template <typename Type, typename... Args>
