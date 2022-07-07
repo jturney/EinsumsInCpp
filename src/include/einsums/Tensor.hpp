@@ -54,7 +54,7 @@ struct Array : public std::array<UnderlyingType, Rank> {
 } // namespace detail
 
 template <size_t Rank>
-using Dim = detail::Array<detail::DimType, Rank>;
+using Dim = detail::Array<detail::DimType, Rank, std::int64_t>;
 
 template <size_t Rank>
 using Stride = detail::Array<detail::StrideType, Rank>;
@@ -214,7 +214,7 @@ struct Tensor final : public detail::TensorBase<T, Rank> {
         };
 
         // Check to see if the user provided a dim of "-1" in one place. If found then the user requests that we
-        // compute this dimensionality of this "0" index for them.
+        // compute this dimensionality of this index for them.
         int nfound{0};
         int location{-1};
         for (auto [i, dim] : enumerate(_dims)) {
@@ -822,6 +822,10 @@ struct TensorView final : public detail::TensorBase<T, Rank> {
         return _full_view_of_underlying;
     }
 
+    [[nodiscard]] auto size() const {
+        return std::accumulate(std::begin(_dims), std::begin(_dims) + Rank, 1, std::multiplies<>{});
+    }
+
   private:
     auto common_initialization(const T *other) {
         _data = const_cast<T *>(other);
@@ -854,6 +858,33 @@ struct TensorView final : public detail::TensorBase<T, Rank> {
         Offset<OtherRank> default_offsets{};
         Stride<Rank> error_strides{};
         error_strides[0] = -1;
+
+        // Check to see if the user provided a dim of "-1" in one place. If found then the user requests that we compute this dimensionality
+        // for them.
+        int nfound{0};
+        int location{-1};
+        for (auto [i, dim] : enumerate(_dims)) {
+            if (dim == -1) {
+                nfound++;
+                location = i;
+            }
+        }
+
+        if (nfound > 1) {
+            throw std::runtime_error("More than one -1 was provided.");
+        }
+
+        if (nfound == 1) {
+            size_t size{1};
+            for (auto [i, dim] : enumerate(_dims)) {
+                if (i != location)
+                    size *= dim;
+            }
+            if (size > other.size()) {
+                throw std::runtime_error("Size of the new tensor is larger than the parent tensor.");
+            }
+            _dims[location] = other.size() / size;
+        }
 
         // If the Ranks are the same then use "other"s stride information
         if constexpr (Rank == OtherRank) {

@@ -40,12 +40,12 @@ template <typename T, size_t Rank>
 struct rank<::einsums::TensorView<T, Rank>> : public std::integral_constant<size_t, Rank> {};
 
 template <typename T, size_t Rank>
-inline auto size(const ::einsums::Tensor<T, Rank> &ref) -> std::array<size_t, Rank> {
+inline auto size(const ::einsums::Tensor<T, Rank> &ref) -> std::array<std::int64_t, Rank> {
     return ref.dims();
 }
 
 template <typename T, size_t Rank>
-inline auto size(const ::einsums::TensorView<T, Rank> &ref) -> std::array<size_t, Rank> {
+inline auto size(const ::einsums::TensorView<T, Rank> &ref) -> std::array<std::int64_t, Rank> {
     return ref.dims();
 }
 

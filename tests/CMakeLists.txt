@@ -4,6 +4,7 @@ add_executable(test-all
     LinearAlgebra.cpp
     Tensor.cpp
     TensorAlgebra.cpp
+    Utilities.cpp
 )
 
 if (HAVE_MKL_LAPACKE_HEADER OR LAPACKE_FOUND)

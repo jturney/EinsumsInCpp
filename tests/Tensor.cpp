@@ -3,6 +3,7 @@
 #include "einsums/LinearAlgebra.hpp"
 #include "einsums/Print.hpp"
 #include "einsums/STL.hpp"
+#include "einsums/Utilities.hpp"
 
 #include <H5Fpublic.h>
 #include <catch2/catch.hpp>
@@ -345,4 +346,49 @@ TEST_CASE("types") {
     SECTION("double->complex<float>") {
         types_test<std::complex<float>, double>();
     }
+}
+
+TEST_CASE("Matrix->View") {
+    using namespace einsums;
+
+    auto T = create_random_tensor("T", 3, 3);
+    zero(T);
+
+    auto V0 = TensorView{T, Dim<1>{-1}};
+    println(V0);
+    auto top = TensorView{V0, Dim<1>{2}, Offset<1>{1}, Stride<1>{4}};
+    auto mid = TensorView{V0, Dim<1>{3}, Stride<1>{4}};
+    auto bot = TensorView{V0, Dim<1>{2}, Offset<1>{3}, Stride<1>{4}};
+
+    top.set_name("top");
+    mid.set_name("mid");
+    bot.set_name("bot");
+
+    // println(T);
+    // println(V0);
+    // println(top);
+    // println(mid);
+    // println(bot);
+
+    auto U = arange<double>(1, 3);
+    // println(U);
+    U *= -1.0;
+    // println(U);
+    top = U;
+
+    auto V = arange<double>(3);
+    // println(V);
+    V *= 2.0;
+    V += 1.0;
+    // println(V);
+    mid = V;
+
+    // println(bot);
+    /// TODO: For some reason bot = top is not working. The copy constructor is being called, not the assignment operator.
+    bot = U;
+    // println(bot);
+
+    println(T);
+
+    println(T(All, -1));
 }
