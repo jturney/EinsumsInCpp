@@ -349,6 +349,21 @@ struct Tensor final : public detail::TensorBase<T, Rank> {
         return *this;
     }
 
+    auto operator/=(const T &b) -> Tensor<T, Rank> & {
+#pragma omp parallel
+        {
+            auto tid = omp_get_thread_num();
+            auto chunksize = _data.size() / omp_get_num_threads();
+            auto begin = _data.begin() + chunksize * tid;
+            auto end = (tid == omp_get_num_threads() - 1) ? _data.end() : begin + chunksize;
+#pragma omp simd
+            for (auto i = begin; i < end; i++) {
+                (*i) /= b;
+            }
+        }
+        return *this;
+    }
+
     auto operator+=(const T &b) -> Tensor<T, Rank> & {
 #pragma omp parallel
         {
@@ -408,7 +423,7 @@ struct Tensor final : public detail::TensorBase<T, Rank> {
 
     auto operator*=(const Tensor<T, Rank> &b) -> Tensor<T, Rank> & {
         if (size() != b.size()) {
-            throw std::runtime_error(fmt::format("operator-= : tensors differ in size : {} {}", size(), b.size()));
+            throw std::runtime_error(fmt::format("operator*= : tensors differ in size : {} {}", size(), b.size()));
         }
 #pragma omp parallel
         {
@@ -521,8 +536,7 @@ struct Tensor final : public detail::TensorBase<T, Rank> {
         return TensorView<T, Rank>{*this, std::move(dims), std::move(offset), std::move(stride)};
     }
 
-    template <typename TOther>
-    auto operator=(const Tensor<TOther, Rank> &other) -> Tensor<T, Rank> & {
+    auto operator=(const Tensor<T, Rank> &other) -> Tensor<T, Rank> & {
         bool realloc{false};
         for (int i = 0; i < Rank; i++) {
             if (dim(i) == 0)
@@ -557,15 +571,52 @@ struct Tensor final : public detail::TensorBase<T, Rank> {
             _data.resize(size);
         }
 
-        if constexpr (std::is_same_v<T, TOther>) {
-            std::copy(other._data.begin(), other._data.end(), _data.begin());
-        } else {
-            auto target_dims = get_dim_ranges<Rank>(*this);
-            for (auto target_combination : std::apply(ranges::views::cartesian_product, target_dims)) {
-                T &target_value = std::apply(*this, target_combination);
-                T value = std::apply(other, target_combination);
-                target_value = value;
+        std::copy(other._data.begin(), other._data.end(), _data.begin());
+
+        return *this;
+    }
+
+    template <typename TOther>
+    auto operator=(const Tensor<TOther, Rank> &other) -> std::enable_if_t<!std::is_same_v<T, TOther>, Tensor<T, Rank> &> {
+        bool realloc{false};
+        for (int i = 0; i < Rank; i++) {
+            if (dim(i) == 0)
+                realloc = true;
+            else if (dim(i) != other.dim(i)) {
+                std::string str = fmt::format("Tensor::operator= dimensions do not match (this){} (other){}", dim(i), other.dim(i));
+                if constexpr (Rank != 1)
+                    throw std::runtime_error(str);
+                else
+                    realloc = true;
             }
+        }
+
+        if (realloc) {
+            struct stride {
+                size_t value{1};
+                stride() = default;
+                auto operator()(size_t dim) -> size_t {
+                    auto old_value = value;
+                    value *= dim;
+                    return old_value;
+                }
+            };
+
+            _dims = other._dims;
+
+            // Row-major order of dimensions
+            std::transform(_dims.rbegin(), _dims.rend(), _strides.rbegin(), stride());
+            size_t size = _strides.size() == 0 ? 0 : _strides[0] * _dims[0];
+
+            // Resize the data structure
+            _data.resize(size);
+        }
+
+        auto target_dims = get_dim_ranges<Rank>(*this);
+        for (auto target_combination : std::apply(ranges::views::cartesian_product, target_dims)) {
+            T &target_value = std::apply(*this, target_combination);
+            T value = std::apply(other, target_combination);
+            target_value = value;
         }
 
         return *this;
@@ -1631,6 +1682,31 @@ auto create_disk_tensor(h5::fd_t &file, const std::string name, Args... args) ->
 template <typename T, size_t Rank>
 auto create_disk_tensor_like(h5::fd_t &file, const Tensor<T, Rank> &tensor) -> DiskTensor<T, Rank> {
     return DiskTensor(file, tensor);
+}
+
+template <typename T, size_t Rank, size_t Order>
+auto move_axis(const Tensor<T, Rank> &tensor, std::array<int, Order> source, std::array<int, Order> destination) -> TensorView<T, Rank> {
+    static_assert(Order <= Rank, "Order of source and destinate must be less than or equal to the tensor rank.");
+
+    // Go through and adjust any negative indices to their real values.
+    for (auto &val : source) {
+        if (val < 0) {
+            val += Rank;
+        }
+    }
+    for (auto &val : destination) {
+        if (val < 0) {
+            val += Rank;
+        }
+    }
+
+    auto dims = tensor.dims();
+    auto strides = tensor.strides();
+}
+
+template <typename T, size_t Rank>
+auto move_axis(const Tensor<T, Rank> &tensor, int source, int destination) -> TensorView<T, Rank> {
+    return move_axis(tensor, {source}, {destination});
 }
 
 } // namespace einsums

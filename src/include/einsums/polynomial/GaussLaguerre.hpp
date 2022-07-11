@@ -43,6 +43,8 @@ auto laguerre_companion(const Tensor<T, 1> &c) -> Tensor<T, 2> {
     /// TODO: Need to add c's contribution to mat. In python:
     /// mat[:, -1] += (c[:-1]/c[-1])*n
 
+    println(mat);
+
     return mat;
 }
 
@@ -60,45 +62,71 @@ auto laguerre_value(const Tensor<T, 1> &x, const Tensor<T, 1> &c) -> Tensor<T, 1
         c1 = c(1);
     } else {
         size_t nd = c.dim(0);
-        println("nd {}", nd);
+        // println("nd {}", nd);
 
         c0 = c(-2);
         c1 = c(-1);
 
         auto tmp = create_tensor_like("tmp", x);
+        auto tmp1 = create_tensor_like("tmp1", x);
         for (int i = 3; i < c.dim(0) + 1; i++) {
             tmp = c0;
             nd = nd - 1;
-            c0 =
+
+            c0 = c1;
+            c0 *= (nd - 1);
+            c0 /= nd;
+            c0 *= -1.0;
+            c0 += c(-i);
+
+            tmp1 = (2 * nd - 1);
+            tmp1 -= x;
+            tmp1 *= c1;
+            tmp1 /= nd;
+            c1 = tmp;
+            c1 += tmp1;
+
+            // println(tmp);
+            // println(c0);
         }
     }
 
-    println(x);
-    println(c0);
-    println(c1);
+    // println("---");
+
+    // println(x);
+    // println(c0);
+    // println(c1);
 
     auto result = create_tensor_like("result", x);
     result = T{1};
-    println(result);
+    // println(result);
     result -= x;
-    println(result);
+    // println(result);
     result *= c1;
-    println(result);
+    // println(result);
     result += c0;
 
-    println(result);
+    // println("adding c0 to result");
+    // println(c0);
+
+    // println("final result");
+    // println(result);
 
     return result;
 }
 
 template <typename T = double>
-auto gausslag(unsigned int degree) -> std::tuple<Tensor<T, 1>, Tensor<T, 1>> {
+auto gausslag(unsigned int degree) -> void /*std::tuple<Tensor<T, 1>, Tensor<T, 1>>*/ {
     // First approximation of roots. We use the fact that the companion matrix is symmetric in this case in order to obtain better zeros.
     auto c = create_tensor<double>("c", degree + 1);
     zero(c);
     c(-1) = 1.0;
     auto m = laguerre_companion(c);
     auto x = create_tensor<double>("x", degree);
+    zero(x);
+
+    println(m);
+    println(x);
     linear_algebra::syev(&m, &x);
 
     // Improve roots by one application of Newtown.

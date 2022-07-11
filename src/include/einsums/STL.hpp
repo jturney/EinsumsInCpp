@@ -99,6 +99,190 @@ constexpr auto enumerate(T &&iterable) {
     return IterableWrapper{std::forward<T>(iterable)};
 }
 
+template <typename... T>
+struct ZipRef {
+  protected:
+    std::tuple<T *...> ptr;
+
+    template <std::size_t I = 0>
+    void copy_assign(const ZipRef &z) {
+        *(std::get<I>(ptr)) = *(std::get<I>(z.ptr));
+        if constexpr (I + 1 < sizeof...(T))
+            copy_assign<I + 1>(z);
+    }
+
+    template <std::size_t I = 0>
+    void val_assign(const std::tuple<T...> &t) {
+        *(std::get<I>(ptr)) = std::get<I>(t);
+        if constexpr (I + 1 < sizeof...(T))
+            val_assign<I + 1>(t);
+    }
+
+  public:
+    ZipRef() = delete;
+    ZipRef(const ZipRef &z) = default;
+    ZipRef(ZipRef &&z) noexcept = default;
+    ZipRef(T *const... p) : ptr(p...) {}
+
+    auto operator=(const ZipRef &z) -> ZipRef & {
+        copy_assign(z);
+        return *this;
+    }
+    auto operator=(const std::tuple<T...> &val) -> ZipRef & {
+        val_assign(val);
+        return *this;
+    }
+
+    auto val() const -> std::tuple<T...> {
+        return std::apply([](auto &&...args) { return std::tuple((*args)...); }, ptr);
+    }
+    operator std::tuple<T...>() const { return val(); }
+
+    template <std::size_t I = 0>
+    void swap_data(const ZipRef &o) const {
+        std::swap(*std::get<I>(ptr), *std::get<I>(o.ptr));
+        if constexpr (I + 1 < sizeof...(T))
+            swap_data<I + 1>(o);
+    }
+
+    template <std::size_t N = 0>
+    auto get() -> decltype(auto) {
+        return *std::get<N>(ptr);
+    }
+    template <std::size_t N = 0>
+    auto get() const -> decltype(auto) {
+        return *std::get<N>(ptr);
+    }
+
+#define OPERATOR(OP)                                                                                                                       \
+    bool operator OP(const ZipRef &o) const {                                                                                              \
+        return val() OP o.val();                                                                                                           \
+    }                                                                                                                                      \
+    inline friend bool operator OP(const ZipRef &r, const std::tuple<T...> &t) {                                                           \
+        return r.val() OP t;                                                                                                               \
+    }                                                                                                                                      \
+    inline friend bool operator OP(const std::tuple<T...> &t, const ZipRef &r) {                                                           \
+        return t OP r.val();                                                                                                               \
+    }
+
+    OPERATOR(==) OPERATOR(<=) OPERATOR(>=) OPERATOR(!=) OPERATOR(<) OPERATOR(>)
+#undef OPERATOR
+};
+
+template <typename... IT>
+class ZipIter {
+    std::tuple<IT...> it;
+
+    template <std::size_t I = 0>
+    auto one_is_equal(const ZipIter &rhs) const -> bool {
+        if (std::get<I>(it) == std::get<I>(rhs.it))
+            return true;
+        if constexpr (I + 1 < sizeof...(IT))
+            return one_is_equal<I + 1>(rhs);
+        return false;
+    }
+    template <std::size_t I = 0>
+    auto none_is_equal(const ZipIter &rhs) const -> bool {
+        if (std::get<I>(it) == std::get<I>(rhs.it))
+            return false;
+        if constexpr (I + 1 < sizeof...(IT))
+            return none_is_equal<I + 1>(rhs);
+        return true;
+    }
+
+  public:
+    using iterator_category = std::common_type_t<typename std::iterator_traits<IT>::iterator_category...>;
+    using difference_type = std::common_type_t<typename std::iterator_traits<IT>::difference_type...>;
+    using value_type = std::tuple<typename std::iterator_traits<IT>::value_type...>;
+    using pointer = std::tuple<typename std::iterator_traits<IT>::pointer...>;
+    using reference = ZipRef<std::remove_reference_t<typename std::iterator_traits<IT>::reference>...>;
+
+    ZipIter() = default;
+    ZipIter(const ZipIter &rhs) = default;
+    ZipIter(ZipIter &&rhs) noexcept = default;
+    ZipIter(const IT &...rhs) : it(rhs...) {}
+
+    auto operator=(const ZipIter &rhs) -> ZipIter & = default;
+    auto operator=(ZipIter &&rhs) noexcept -> ZipIter & = default;
+
+    auto operator+=(const difference_type d) -> ZipIter & {
+        std::apply([&d](auto &&...args) { ((std::advance(args, d)), ...); }, it);
+        return *this;
+    }
+    auto operator-=(const difference_type d) -> ZipIter & { return operator+=(-d); }
+
+    auto operator*() const -> reference {
+        return std::apply([](auto &&...args) { return reference(&(*(args))...); }, it);
+    }
+    auto operator->() const -> pointer {
+        return std::apply([](auto &&...args) { return pointer(&(*(args))...); }, it);
+    }
+    auto operator[](difference_type rhs) const -> reference { return *(operator+(rhs)); }
+
+    auto operator++() -> ZipIter & { return operator+=(1); }
+    auto operator--() -> ZipIter & { return operator+=(-1); }
+    auto operator++(int) -> ZipIter {
+        ZipIter tmp(*this);
+        operator++();
+        return tmp;
+    }
+    auto operator--(int) -> ZipIter {
+        ZipIter tmp(*this);
+        operator--();
+        return tmp;
+    }
+
+    auto operator-(const ZipIter &rhs) const -> difference_type { return std::get<0>(it) - std::get<0>(rhs.it); }
+    auto operator+(const difference_type d) const -> ZipIter {
+        ZipIter tmp(*this);
+        tmp += d;
+        return tmp;
+    }
+    auto operator-(const difference_type d) const -> ZipIter {
+        ZipIter tmp(*this);
+        tmp -= d;
+        return tmp;
+    }
+    inline friend auto operator+(const difference_type d, const ZipIter &z) -> ZipIter { return z + d; }
+    inline friend auto operator-(const difference_type d, const ZipIter &z) -> ZipIter { return z - d; }
+
+    // Since operator== and operator!= are often used to terminate cycles,
+    // defining them as follow prevents incrementing behind the end() of a container
+    auto operator==(const ZipIter &rhs) const -> bool { return one_is_equal(rhs); }
+    auto operator!=(const ZipIter &rhs) const -> bool { return none_is_equal(rhs); }
+#define OPERATOR(OP)                                                                                                                       \
+    bool operator OP(const ZipIter &rhs) const {                                                                                           \
+        return it OP rhs.it;                                                                                                               \
+    }
+    OPERATOR(<=) OPERATOR(>=) OPERATOR(<) OPERATOR(>)
+#undef OPERATOR
+};
+
+template <typename... Container>
+class Zip {
+    std::tuple<Container &...> zip;
+
+  public:
+    Zip() = delete;
+    Zip(const Zip &z) = default;
+    Zip(Zip &&z) noexcept = default;
+    Zip(Container &...z) : zip(z...) {}
+
+#define HELPER(OP)                                                                                                                         \
+    auto OP() {                                                                                                                            \
+        return std::apply([](auto &&...args) { return ZipIter((args.OP())...); }, zip);                                                    \
+    }                                                                                                                                      \
+    auto c##OP() const {                                                                                                                   \
+        return std::apply([](auto &&...args) { return ZipIter((args.c##OP())...); }, zip);                                                 \
+    }                                                                                                                                      \
+    auto OP() const {                                                                                                                      \
+        return this->c##OP();                                                                                                              \
+    }
+
+    HELPER(begin) HELPER(end) HELPER(rbegin) HELPER(rend)
+#undef HELPER
+};
+
 namespace Detail {
 
 template <typename T, std::size_t... Is>
@@ -538,3 +722,24 @@ inline auto operator!=(const AlignedAllocator<T, TAlign> &, const AlignedAllocat
 }
 
 } // namespace einsums
+
+namespace std {
+
+template <std::size_t N, typename... T>
+struct tuple_element<N, einsums::ZipRef<T...>> {
+    using type = decltype(std::get<N>(std::declval<einsums::ZipRef<T...>>().val()));
+};
+
+template <typename... T>
+struct tuple_size<einsums::ZipRef<T...>> : public std::integral_constant<std::size_t, sizeof...(T)> {};
+
+template <std::size_t N, typename... T>
+auto get(einsums::ZipRef<T...> &r) -> decltype(auto) {
+    return r.template get<N>();
+}
+template <std::size_t N, typename... T>
+auto get(const einsums::ZipRef<T...> &r) -> decltype(auto) {
+    return r.template get<N>();
+}
+
+} // namespace std
