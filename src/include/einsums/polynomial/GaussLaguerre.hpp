@@ -47,6 +47,10 @@ auto laguerre_companion(const Tensor<T, 1> &c) -> Tensor<T, 2> {
 }
 
 template <typename T>
+auto laguerre_derivative(const Tensor<T, 1> &c, int m = 1, T scl = T{1}, int axis = 0) -> Tensor<T, 1> {
+}
+
+template <typename T>
 auto laguerre_value(const Tensor<T, 1> &x, const Tensor<T, 1> &c) -> Tensor<T, 1> {
     auto c0 = create_tensor_like("c0", x), c1 = create_tensor_like("c1", x);
     zero(c0);
@@ -114,7 +118,7 @@ auto laguerre_value(const Tensor<T, 1> &x, const Tensor<T, 1> &c) -> Tensor<T, 1
 }
 
 template <typename T = double>
-auto gausslag(unsigned int degree) -> void /*std::tuple<Tensor<T, 1>, Tensor<T, 1>>*/ {
+auto laggauss(unsigned int degree) -> void /*std::tuple<Tensor<T, 1>, Tensor<T, 1>>*/ {
     // First approximation of roots. We use the fact that the companion matrix is symmetric in this case in order to obtain better zeros.
     auto c = create_tensor<double>("c", degree + 1);
     zero(c);
@@ -129,7 +133,7 @@ auto gausslag(unsigned int degree) -> void /*std::tuple<Tensor<T, 1>, Tensor<T, 
 
     // Improve roots by one application of Newtown.
     auto dy = laguerre_value(x, c);
-    // auto df = laguerre_value(x, laguerre_derivative(c));
+    auto df = laguerre_value(x, laguerre_derivative(c));
 
     // x -= (dy / df);
 }
