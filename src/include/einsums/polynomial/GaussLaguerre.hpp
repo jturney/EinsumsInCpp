@@ -43,8 +43,6 @@ auto laguerre_companion(const Tensor<T, 1> &c) -> Tensor<T, 2> {
     /// TODO: Need to add c's contribution to mat. In python:
     /// mat[:, -1] += (c[:-1]/c[-1])*n
 
-    println(mat);
-
     return mat;
 }
 
