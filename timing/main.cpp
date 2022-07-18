@@ -169,13 +169,17 @@ auto main() -> int {
     // C.set_all(0.0);
     // einsum(Indices{i, j, k}, &C, Indices{i, j}, A, Indices{k}, B);
 
-    auto eri = create_random_tensor("eri", NMO, NMO, NMO, NMO);
-    DiskTensor g(state::data, "eri", NMO, NMO, NMO, NMO);
+    // auto eri = create_random_tensor("eri", NMO, NMO, NMO, NMO);
+    // DiskTensor g(state::data, "eri", NMO, NMO, NMO, NMO);
 
-    {
-        Section section{"disk write"};
-        g(All, All, All, All) = eri;
-    }
+    // {
+    //     Section section{"disk write"};
+    //     g(All, All, All, All) = eri;
+    // }
+
+    auto a = create_incremented_tensor("a", 3, 5);
+    println(a);
+
     timer::report();
     blas::finalize();
     timer::finalize();

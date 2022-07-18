@@ -115,7 +115,7 @@ html_theme_options = {
   "navbar_end": ["theme-switcher", "version-switcher", "navbar-icon-links"],
   "switcher": {
       "version_match": switcher_version,
-    #   "json_url": "https://numpy.org/doc/_static/versions.json",
+      "json_url": "_static/versions.json",
   },
 }
 

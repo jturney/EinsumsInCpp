@@ -10,4 +10,4 @@ This guide is an overview and explains the important features; details are found
     :maxdepth: 1
 
     whatiseinsums
-
+    quickstart
