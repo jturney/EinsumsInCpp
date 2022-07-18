@@ -53,3 +53,6 @@ _deps
 # Visual Studio files
 .vs
 CMakeSettings.json
+
+*.log
+

@@ -75,6 +75,12 @@ auto get_dim_ranges(const TensorType<T, Rank> &tensor) {
     return detail::get_dim_ranges(tensor, std::make_index_sequence<N>{});
 }
 
+/**
+ * @brief The multidimensional tensor object.
+ *
+ * @tparam T Underlying data type to use. Generally, float, double, std::complex<float>, std::complex<double.
+ * @tparam Rank The order of the tensor. E.g. 0 is a scalar, 1 a vector, 2 a matrix, etc.
+ */
 template <typename T, size_t Rank>
 struct Tensor final : public detail::TensorBase<T, Rank> {
 
