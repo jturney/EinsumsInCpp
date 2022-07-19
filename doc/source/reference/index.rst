@@ -12,5 +12,7 @@ Einsums Reference
 This reference manual details functions, modules, and objects included
 in Einsums, describing what they are and what they do.
 
-.. _doxygenstruct:: einsums::Tensor
-    _:members:
+.. toctree::
+    :maxdepth: 2
+
+    tensors
