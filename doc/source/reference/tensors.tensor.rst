@@ -2,9 +2,16 @@
 
 .. _tensors.tensor:
 
-******************************************
-The N-dimensional tensor (:class:`einsums::Tensor`)
-******************************************
+***************************************************
+The N-dimensional tensor (:class:`ensor`)
+***************************************************
 
-.. doxygenstruct:: einsums::Tensor
-    :members:
+A :class:`Tensor` is a fixed-size multidimensional container
+of items of the same type and size. The number of dimensions
+and items in an array is defined by its
+
+.. autosummary::
+    :toctree: generated/
+
+    tensor
+    tensor.dims
