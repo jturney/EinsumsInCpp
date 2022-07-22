@@ -89,7 +89,7 @@ def setup(app):
 
 html_theme = 'pydata_sphinx_theme'
 
-html_favicon = '_static/favicon/favicon.ico'
+# html_favicon = '_static/favicon/favicon.ico'
 
 # Set up the version switcher.  The versions.json is stored in the doc repo.
 if os.environ.get('CIRCLE_JOB', False) and \

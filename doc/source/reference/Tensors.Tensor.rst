@@ -1,17 +1,11 @@
-.. currentmodule:: einsums
+.. :cpp:namespace:: einsums
 
 .. _tensors.tensor:
 
 ***************************************************
-The N-dimensional tensor (:class:`ensor`)
+The N-dimensional Tensor (:cpp:struct:`Tensor`)
 ***************************************************
 
-A :class:`Tensor` is a fixed-size multidimensional container
+A :cpp:struct:`Tensor` is a fixed-size multidimensional container
 of items of the same type and size. The number of dimensions
 and items in an array is defined by its
-
-.. autosummary::
-    :toctree: generated/
-
-    tensor
-    tensor.dims

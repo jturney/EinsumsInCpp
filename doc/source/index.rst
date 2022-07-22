@@ -9,7 +9,7 @@ Einsums Documentation
     :hidden:
 
     User Guide <user/index>
-    API Reference <reference/index>
+    API Reference <reference/Index>
 
 **Version**: |version|
 

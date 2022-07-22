@@ -21,82 +21,24 @@ PAPEROPT_a4 = -D latex_paper_size=a4
 PAPEROPT_letter = -D latex_paper_size=letter
 ALLSPHINXOPTS = -WT --keep-going -d build/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) source
 
-.PHONY: help clean html web htmlhelp latex changes linkcheck \
-	dist dist-build version-check html-build latex-build \
-	merge-doc show docenv
+.PHONY: help clean html
 
 #---------------------------------------------------------------------
 
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
 	@echo "  clean     to remove generated doc files and start fresh"
-	@echo "  docenv    make a virtual environment in which to build docs"
 	@echo "  html      to make standalone HTML files"
-	@echo "  htmlhelp  to make HTML files and a HTML help project"
-	@echo "  latex     to make LaTeX files, you can set PAPER=a4 or PAPER=letter"
-	@echo "  changes   to make an overview over all changed/added/deprecated items"
-	@echo "  linkcheck to check all external links for integrity"
-	@echo "  dist PYVER=... to make a distribution-ready tree"
-	@echo "  merge-doc TAG=... to clone einsums/doc and archive documentation into it"
-	@echo "  show      to show the html output in a browser"
 
 clean:
 	-rm -rf build/*
 	find . -name generated -type d -prune -exec rm -f "{}" ";"
-
-docenv:
-	$(PYTHON) -mvenv docenv
-	( \
-            . docenv/bin/activate; \
-            pip install -q --upgrade pip; \
-            pip install -q  -r ../test_requirements.txt; \
-            pip install -q  -r ../doc_requirements.txt; \
-            pip install -q ..; \
-	)
 
 #------------------------------------------------------------------------
 # Automated generation of all documents
 #------------------------------------------------------------------------
 
 GITVER ?= $(shell cd ..; $(PYTHON) -c "import versioneer as v; print(v.get_versions()['full-revisionid'][:10])")
-
-version-check:
-	# @echo "Nothing to do."
-
-dist: build/dist.tar.gz
-
-build/dist.tar.gz: real-dist
-
-real-dist: html-build
-	cp -r build/html build/dist
-	cd build/html && zip -9r ../dist/einsums-html.zip .
-	cd build/dist && tar czf ../dist.tar.gz *
-	chmod ug=rwX,o=rX -R build/dist
-	find build/dist -type d -print0 | xargs -0r chmod g+s
-
-merge-doc: build/dist.tar.gz
-ifeq "$(TAG)" ""
-	echo tag "$(TAG)" not of the form 1.18;
-	exit 1;
-endif
-	@# Only clone if the directory does not exist
-	@if ! test -d build/merge; then \
-		git clone https://github.com/jturney/doc build/merge; \
-	fi;
-	@# Remove any old content and copy in the new, add it to git
-	-rm -rf build/merge/$(TAG)/*
-	-mkdir -p build/merge/$(TAG)
-	@# -C changes working directory
-	tar -C build/merge/$(TAG) -xf build/dist.tar.gz
-	git -C build/merge add $(TAG)
-	@# For now, the user must do this. If it is onerous, automate it and change
-	@# the instructions in doc/HOWTO_RELEASE.rst
-	@echo " "
-	@echo New documentation archive added to ./build/merge.
-	@echo Now add/modify the appropriate section after
-	@echo "    <!-- insert here -->"
-	@echo in build/merge/index.html,
-	@echo then \"git commit\", \"git push\"
 
 #------------------------------------------------------------------------------
 # Basic Sphinx generation rules for different formats
@@ -107,7 +49,7 @@ build/generate-stamp: $(wildcard source/reference/*.rst)
 	mkdir -p build
 	touch build/generate-stamp
 
-html: version-check html-build
+html: html-build
 html-build: generate
 	mkdir -p build/html build/doctrees
 	$(PYTHON) preprocess.py
@@ -120,63 +62,3 @@ endif
 	$(PYTHON) postprocess.py html build/html/*.html
 	@echo
 	@echo "Build finished. The HTML pages are in build/html."
-
-htmlhelp: generate version-check
-	mkdir -p build/htmlhelp build/doctrees
-	$(SPHINXBUILD) -b htmlhelp $(ALLSPHINXOPTS) build/htmlhelp $(FILES)
-	@echo
-	@echo "Build finished; now you can run HTML Help Workshop with the" \
-	      ".hhp project file in build/htmlhelp."
-
-htmlhelp-build: htmlhelp build/htmlhelp/einsums.chm
-%.chm: %.hhp
-	-hhc.exe $^
-
-qthelp: generate version-check
-	mkdir -p build/qthelp build/doctrees
-	$(SPHINXBUILD) -b qthelp $(ALLSPHINXOPTS) build/qthelp $(FILES)
-
-latex: version-check latex-build
-latex-build: generate
-	mkdir -p build/latex build/doctrees
-	$(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) build/latex $(FILES)
-	$(PYTHON) postprocess.py tex build/latex/*.tex
-	perl -pi -e 's/LATEXOPTS =/LATEXOPTS ?= --halt-on-error/' build/latex/Makefile
-	@echo
-	@echo "Build finished; the LaTeX files are in build/latex."
-	@echo "Run \`make all-pdf' or \`make all-ps' in that directory to" \
-	      "run these through (pdf)latex."
-
-coverage: build version-check
-	mkdir -p build/coverage build/doctrees
-	$(SPHINXBUILD) -b coverage $(ALLSPHINXOPTS) build/coverage $(FILES)
-	@echo "Coverage finished; see c.txt and python.txt in build/coverage"
-
-changes: generate version-check
-	mkdir -p build/changes build/doctrees
-	$(SPHINXBUILD) -b changes $(ALLSPHINXOPTS) build/changes $(FILES)
-	@echo
-	@echo "The overview file is in build/changes."
-
-linkcheck: generate version-check
-	mkdir -p build/linkcheck build/doctrees
-	$(SPHINXBUILD) -b linkcheck $(ALLSPHINXOPTS) build/linkcheck $(FILES)
-	@echo
-	@echo "Link check complete; look for any errors in the above output " \
-	      "or in build/linkcheck/output.txt."
-texinfo:
-	$(SPHINXBUILD) -b texinfo $(ALLSPHINXOPTS) build/texinfo
-	@echo
-	@echo "Build finished. The Texinfo files are in build/texinfo."
-	@echo "Run \`make' in that directory to run these through makeinfo" \
-	      "(use \`make info' here to do that automatically)."
-
-info:
-	$(SPHINXBUILD) -b texinfo $(ALLSPHINXOPTS) build/texinfo
-	@echo "Running Texinfo files through makeinfo..."
-	make -C build/texinfo info
-	@echo "makeinfo finished; the Info files are in build/texinfo."
-
-
-show:
-	@python -c "import webbrowser; webbrowser.open_new_tab('file://$(PWD)/build/html/index.html')"
